@@ -1,2 +1,6 @@
 # ai-playground
-test ai gen code
+
+| id  | model             |
+| --- | ----------------- |
+| 001 | Claude 3.7 Sonnet |
+
