@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>科技感粒子效果</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #0a0a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            position: relative;
+            text-align: center;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <canvas id="particleCanvas"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('particleCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let width = canvas.width = 800;
+        let height = canvas.height = 800;
+        
+        // 響應視窗大小變化
+        function resizeCanvas() {
+            width = canvas.width = Math.min(window.innerWidth, window.innerHeight);
+            height = canvas.height = Math.min(window.innerWidth, window.innerHeight);
+        }
+        
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+        
+        const mouse = {
+            x: null,
+            y: null,
+            active: false,
+            radius: 100
+        };
+        
+        canvas.addEventListener('mousemove', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = event.clientX - rect.left;
+            mouse.y = event.clientY - rect.top;
+            mouse.active = true;
+            
+            // 5秒無活動後重置滑鼠位置
+            clearTimeout(mouse.timeout);
+            mouse.timeout = setTimeout(() => {
+                mouse.active = false;
+            }, 5000);
+        });
+        
+        canvas.addEventListener('mouseleave', () => {
+            mouse.active = false;
+        });
+        
+        // 粒子類
+        class Particle {
+            constructor(x, y) {
+                this.baseX = x;
+                this.baseY = y;
+                this.x = x;
+                this.y = y;
+                this.size = Math.random() * 3 + 1;
+                this.density = Math.random() * 10 + 2;
+                this.color = this.getRandomColor();
+                this.vx = (Math.random() - 0.5) * 0.3; // 基礎流動速度
+                this.vy = (Math.random() - 0.5) * 0.3;
+                this.returnSpeed = 0.02;
+                
+                // 新增: 使粒子自動移動的屬性
+                this.moveAngle = Math.random() * Math.PI * 2;
+                this.moveSpeed = Math.random() * 0.3 + 0.1;
+                this.moveChangeTimer = 0;
+                this.moveChangeDuration = Math.random() * 200 + 100; // 每隔一段時間改變移動方向
+            }
+            
+            getRandomColor() {
+                const colors = [
+                    '#4facfe', '#00f2fe', '#a18cd1', '#fbc2eb', 
+                    '#8fd3f4', '#84fab0', '#fa709a', '#fee140'
+                ];
+                return colors[Math.floor(Math.random() * colors.length)];
+            }
+            
+            update() {
+                // 圓形區域中心點
+                const centerX = width / 2;
+                const centerY = height / 2;
+                const radius = width * 0.3;
+                
+                // 計算與中心的距離
+                const dx = this.x - centerX;
+                const dy = this.y - centerY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                // 如果超出圓形範圍，向中心移動
+                if (distance > radius) {
+                    const angle = Math.atan2(dy, dx);
+                    this.x = centerX + Math.cos(angle) * radius;
+                    this.y = centerY + Math.sin(angle) * radius;
+                }
+                
+                // 與滑鼠的互動
+                if (mouse.active) {
+                    const dx = mouse.x - this.x;
+                    const dy = mouse.y - this.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance < mouse.radius) {
+                        // 逃離滑鼠
+                        const forceDirectionX = -dx / distance;
+                        const forceDirectionY = -dy / distance;
+                        const force = (mouse.radius - distance) / mouse.radius;
+                        
+                        const directionX = forceDirectionX * force * this.density;
+                        const directionY = forceDirectionY * force * this.density;
+                        
+                        this.x += directionX;
+                        this.y += directionY;
+                    }
+                }
+                
+                // 新增: 隨機自動移動
+                this.moveChangeTimer++;
+                if (this.moveChangeTimer >= this.moveChangeDuration) {
+                    // 改變移動方向
+                    this.moveAngle = Math.random() * Math.PI * 2;
+                    this.moveSpeed = Math.random() * 0.3 + 0.1;
+                    this.moveChangeDuration = Math.random() * 200 + 100;
+                    this.moveChangeTimer = 0;
+                }
+                
+                // 應用自動移動
+                this.x += Math.cos(this.moveAngle) * this.moveSpeed;
+                this.y += Math.sin(this.moveAngle) * this.moveSpeed;
+                
+                // 自然流動
+                this.x += this.vx;
+                this.y += this.vy;
+                
+                // 逐漸回到原位 (減小回歸力以允許更自由的移動)
+                const dx2 = this.baseX - this.x;
+                const dy2 = this.baseY - this.y;
+                this.x += dx2 * (this.returnSpeed * 0.5);
+                this.y += dy2 * (this.returnSpeed * 0.5);
+                
+                // 新增: 微幅的隨機抖動效果
+                this.x += (Math.random() - 0.5) * 0.2;
+                this.y += (Math.random() - 0.5) * 0.2;
+            }
+            
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
+        }
+        
+        // 初始化粒子
+        let particles = [];
+        function initParticles() {
+            particles = [];
+            const numberOfParticles = Math.min(width, height) * 0.3;
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const radius = width * 0.3;
+            
+            for (let i = 0; i < numberOfParticles; i++) {
+                // 在圓內隨機生成點
+                const angle = Math.random() * Math.PI * 2;
+                const r = Math.sqrt(Math.random()) * radius; // 平方根確保均勻分布
+                const x = centerX + r * Math.cos(angle);
+                const y = centerY + r * Math.sin(angle);
+                
+                particles.push(new Particle(x, y));
+            }
+        }
+        
+        // 連接附近的粒子
+        function connectParticles() {
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i + 1; j < particles.length; j++) {
+                    const dx = particles[i].x - particles[j].x;
+                    const dy = particles[i].y - particles[j].y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance < 50) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = `rgba(255, 255, 255, ${1 - distance/50})`;
+                        ctx.lineWidth = 0.2;
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+        
+        // 動畫
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+            
+            // 畫一個光環
+            const grd = ctx.createRadialGradient(
+                width/2, height/2, width*0.1,
+                width/2, height/2, width*0.4
+            );
+            grd.addColorStop(0, "rgba(50, 100, 255, 0.05)");
+            grd.addColorStop(1, "rgba(50, 100, 255, 0)");
+            
+            ctx.fillStyle = grd;
+            ctx.fillRect(0, 0, width, height);
+            
+            // 更新和繪製所有粒子
+            for (let i = 0; i < particles.length; i++) {
+                particles[i].update();
+                particles[i].draw();
+            }
+            
+            connectParticles();
+            requestAnimationFrame(animate);
+        }
+        
+        initParticles();
+        animate();
+    </script>
+</body>
+</html>
